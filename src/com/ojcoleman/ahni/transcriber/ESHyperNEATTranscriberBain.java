@@ -34,6 +34,7 @@ import com.ojcoleman.ahni.nn.BainNN;
 import com.ojcoleman.ahni.nn.NNAdaptor;
 import com.ojcoleman.ahni.transcriber.HyperNEATTranscriber.CPPN;
 import com.ojcoleman.ahni.util.Point;
+import com.ojcoleman.ahni.util.PointNd;
 
 /**
  * Constructs a <a href="https://github.com/OliverColeman/bain">Bain</a> neural network from a chromosome using the
@@ -80,12 +81,12 @@ public class ESHyperNEATTranscriberBain extends HyperNEATTranscriberBainBase imp
 	int maxDepth = 3;
 	double divisionThreshold = 0.03;
 	double varianceThreshold = 0.03;
-	double bandThrehold = 0.3;
+	double bandThrehold = 0.03;
 	boolean pseudo3D = false;
 	
 	double runningAvgHiddenNeuronCount = 16;
 	double runningAvgSynapseCount = 160;
-	int maxQuadTreeSize = 1;
+	int maxQuadTreeSize = 4;
 	
 	int maxNeuronCount = 0;
 	int maxSynapseCount = 0;
@@ -611,9 +612,10 @@ public class ESHyperNEATTranscriberBain extends HyperNEATTranscriberBainBase imp
 		public double[] coord;
 		public double width;
 		public double weight;
-		public double lvl;
+		public int lvl;
 		public String[] signs;
 		public NdTree[] children;
+		public double pattern_val;
 		public NdTree(double[] c, double width, int lvl) {
 			this.coord = c;
 			this.width = width;
@@ -673,7 +675,43 @@ public class ESHyperNEATTranscriberBain extends HyperNEATTranscriberBainBase imp
 			return sourcePoint + " -> " + targetPoint;
 		}
 	}
+	/**
+	 * This will be the > 2 dimensional division and initialization, this will be done 
+	 * in the same matter but permuting appropriately for each dimension much as is done in the tree
+	 * division method
+	 * 
+	 * 	public NdTree nDTreeInitialization(CPPN cppn, Point n, boolean outgoing, double[] tempStore) {
+		
+	}
+	 * 
+	 */
 
+
+	public NdTree ndTreeInit(CPPN cppn, PointNd n, boolean outgoing, double[] tempStorageForCPPNValues) {
+		int maxTreeDepth = maxQuadTreeSize;
+		double[] root_list = new double[] {};
+		for(int sexy_indexy = 0; sexy_indexy < n.coords.length; sexy_indexy++) {
+			root_list[sexy_indexy] = 0.0;
+		}
+		NdTree groot = new NdTree(root_list, 1.0, 1);
+		ArrayDeque<NdTree> queue = new ArrayDeque<NdTree>(maxTreeDepth);
+		queue.add(groot);
+		while(!queue.isEmpty()) {
+			NdTree current_root = queue.pop();
+			current_root.subdivide_into_children();
+			for(int big_boi = 0; big_boi < current_root.children.length; big_boi++) {
+				NdTree choosen_one = current_root.children[big_boi];
+				if(outgoing) {
+					choosen_one.pattern_val = cppn.query(n, choosen_one);	
+				} else {
+					choosen_one.pattern_val = cppn.query(choosen_one, n);
+				}
+			}
+			if (current_root.lvl < initialDepth || (current_root.lvl < maxDepth && variance(current_root, tempStorageForCPPNValues) > divisionThreshold)) {
+				
+			}
+		}
+	}
 	/**
 	 * Creates a quadtree by recursively subdividing the initial square, which spans the space from (-1, -1) to (1, 1), 
 	 * until a desired initial resolution is reached. For every quadtree square with centre (x, y) the CPPN is queried 
@@ -860,6 +898,14 @@ public class ESHyperNEATTranscriberBain extends HyperNEATTranscriberBainBase imp
 		return variance;
 	}
 
+	protected double varianceNd(NdTree p, double[] tempstore) {
+		if(p.children[0] == null) {
+			return 0;
+		}
+		
+		int size = getCPPNValuesNd(p, tempstore, 0);
+	}
+	
 	/**
 	 *  Collect the CPPN values for each leaf node in a quadtree.
 	 *  Used to estimate the variance in a certain region in space.
